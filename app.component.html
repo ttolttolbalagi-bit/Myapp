@@ -1,0 +1,392 @@
+<div class="relative min-h-screen w-full bg-black">
+  <div class="absolute inset-0 bg-gray-900 bg-opacity-70"></div>
+
+  <main class="relative z-10 p-2 max-w-lg mx-auto flex flex-col h-screen">
+    
+    <!-- Player Stats Header -->
+    @if(gameStarted()) {
+      <header class="w-full bg-gray-900/70 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-700 mb-2 flex justify-between items-center">
+        <div class="flex-shrink-0 text-center mr-3">
+          <div class="font-bold text-lg leading-tight text-white">{{ day() }}일차</div>
+          <div class="text-sm text-yellow-300">{{ formattedTime() }}</div>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-xs text-center flex-grow">
+          <div>
+            <span class="text-yellow-400">허기</span>
+            <div class="w-full bg-gray-700 rounded-full h-2 mt-1">
+              <div 
+                class="h-2 rounded-full transition-all duration-500 ease-in-out" 
+                [class]="getNegativeStatBarColor(player().hunger)"
+                [class.stat-bar-flash]="hungerChanged()"
+                [style.width.%]="player().hunger"></div>
+            </div>
+            <span class="text-white text-xs">{{player().hunger}} / 100</span>
+          </div>
+          <div>
+            <span class="text-green-400">피로</span>
+            <div class="w-full bg-gray-700 rounded-full h-2 mt-1">
+              <div 
+                class="h-2 rounded-full transition-all duration-500 ease-in-out"
+                [class]="getNegativeStatBarColor(player().fatigue)"
+                [class.stat-bar-flash]="fatigueChanged()"
+                [style.width.%]="player().fatigue"></div>
+            </div>
+            <span class="text-white text-xs">{{player().fatigue}} / 100</span>
+          </div>
+          <div>
+            <span class="text-pink-400">성욕</span>
+            <div class="w-full bg-gray-700 rounded-full h-2 mt-1">
+              <div 
+                class="bg-pink-500 h-2 rounded-full transition-all duration-500 ease-in-out"
+                [class.stat-bar-flash]="lustChanged()"
+                [style.width.%]="player().lust"></div>
+            </div>
+            <span class="text-white text-xs">{{player().lust}}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 ml-4">
+          <button (click)="showCharacterList.set(true)" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-xs transition-colors">인물</button>
+          <button (click)="showSaveMenu.set(true)" class="px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-xs transition-colors">저장</button>
+        </div>
+      </header>
+    }
+
+    <!-- Game Content -->
+    <div class="flex-grow flex flex-col items-center justify-center min-h-0">
+      @if (!gameStarted()) {
+        <div class="text-center p-4 w-full">
+          <h1 class="text-5xl font-bold mb-4 text-white drop-shadow-lg">쿠노이치 인법첩</h1>
+          <p class="text-lg text-gray-300 mb-6 max-w-2xl">학원의 메아리</p>
+          <button (click)="startGame()" class="w-full mb-6 px-8 py-4 bg-red-700 hover:bg-red-800 text-white font-bold rounded-lg text-xl transition-transform transform hover:scale-105 shadow-xl">
+            새 게임 시작
+          </button>
+
+          <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            @for (slot of saveSlots(); track slot.id) {
+              <div class="bg-gray-800/50 border border-gray-700 rounded-lg p-3 flex flex-col justify-between">
+                <div>
+                  <h3 class="font-bold text-lg text-gray-200 mb-2">슬롯 {{ slot.id + 1 }}</h3>
+                  @if (slot.isEmpty) {
+                    <p class="text-gray-400 italic">비어있음</p>
+                  } @else {
+                    <p class="text-gray-300">{{ slot.timestamp | date:'yy/MM/dd HH:mm' }}</p>
+                    <p class="text-blue-400 truncate">장소: {{ slot.location || '알 수 없음' }}</p>
+                  }
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2 justify-end">
+                  <button (click)="loadGame(slot.id)" [disabled]="slot.isEmpty" class="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 rounded disabled:bg-gray-600 disabled:cursor-not-allowed">불러오기</button>
+                  <button (click)="deleteSave(slot.id)" [disabled]="slot.isEmpty" class="px-3 py-1 text-xs bg-red-700 hover:bg-red-800 rounded disabled:bg-gray-600 disabled:cursor-not-allowed">삭제</button>
+                  <button (click)="exportSave(slot.id)" [disabled]="slot.isEmpty" class="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-700 rounded disabled:opacity-50">내보내기</button>
+                  <label class="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 rounded cursor-pointer">
+                    <span>가져오기</span>
+                    <input type="file" class="hidden" accept=".json" (change)="importSave($event, slot.id)">
+                  </label>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="w-full h-full flex flex-col relative">
+          @if (loading() && !currentTurn()) {
+            <div class="flex-grow flex flex-col items-center justify-center text-center p-8 bg-black/50 rounded-lg">
+                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-red-500 mb-4"></div>
+                <p class="text-xl text-gray-200">운명의 두루마리가 펼쳐지고 있습니다...</p>
+                <p class="text-sm text-gray-400">Gemini가 당신의 이야기를 만들고 있습니다.</p>
+            </div>
+          } @else if (error()) {
+            <div class="flex-grow flex flex-col items-center justify-center text-center p-8 bg-red-900/50 rounded-lg border border-red-700">
+              <h2 class="text-2xl font-bold text-red-400 mb-2">오류 발생</h2>
+              <p class="text-red-300">{{ error() }}</p>
+              <button (click)="startGame()" class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md">재시도</button>
+            </div>
+          } @else if (currentTurn(); as turn) {
+            @switch (currentView()) {
+              @case ('location_selection') {
+                <div class="flex-grow flex flex-col justify-center p-4 bg-black/20 rounded-lg">
+                  <p class="text-center text-gray-300 leading-relaxed mb-6">{{ turn.sceneDescription }}</p>
+                  <div class="grid grid-cols-2 gap-3">
+                     @for (location of locations; track location) {
+                      <button (click)="moveToLocation(location)" class="p-4 bg-gray-800 hover:bg-blue-900/50 border border-gray-700 rounded-lg transition-all duration-300">
+                        {{ location }}
+                      </button>
+                    }
+                  </div>
+                  <div class="mt-4 space-y-3">
+                    <button (click)="restInPlace()"
+                            [disabled]="loading()"
+                            class="w-full p-3 bg-green-700 hover:bg-green-800 rounded-lg text-sm transition-colors disabled:opacity-50"
+                            title="잠시 앉아 휴식합니다. (피로 -15, 시간 +30분). 누군가 말을 걸어올 수 있습니다.">
+                      가만히 앉아 휴식하기
+                    </button>
+                    <button (click)="returnToMainMenu()"
+                            [disabled]="loading()"
+                            class="w-full p-3 bg-gray-700 hover:bg-gray-800 rounded-lg text-sm transition-colors disabled:opacity-50"
+                            title="메인 메뉴로 돌아갑니다. 진행 상황은 저장되지 않습니다.">
+                      메인 메뉴로
+                    </button>
+                  </div>
+                </div>
+              }
+              @case ('interaction') {
+                <div class="flex-grow flex flex-col p-2 bg-black/20 rounded-lg min-h-0">
+                  <div class="p-3 bg-gray-800/60 rounded-lg shadow-inner mb-2 max-h-48 overflow-y-auto flex-shrink-0">
+                    <p class="text-gray-300 leading-relaxed text-sm whitespace-pre-wrap">{{ turn.sceneDescription }}</p>
+                  </div>
+
+                  <div class="flex-grow overflow-y-auto space-y-2 pr-1">
+                    @for (npc of currentNpcs(); track npc.name) {
+                      <div>
+                          <div class="p-3 bg-gray-900/50 rounded-lg">
+                            <div class="flex justify-between items-center mb-2">
+                              <div class="flex items-center gap-3">
+                                <h2 class="text-lg font-bold text-red-400">{{ npc.name }}</h2>
+                                @if (npc.affection === 100 && npc.desire === 100) {
+                                  <span class="text-xs bg-red-800 text-red-200 px-2 py-1 rounded-full font-bold animate-pulse">위험</span>
+                                } @else {
+                                  @let mood = getNpcMood(npc.affection, npc.desire);
+                                  <span class="text-xs px-2 py-1 rounded-full font-semibold" [class]="getNpcMoodColor(mood)">{{ mood }}</span>
+                                }
+                              </div>
+                               <button (click)="startEditing(npc)" class="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-700 rounded transition-colors">
+                                수정
+                              </button>
+                            </div>
+                            <p class="text-sm text-gray-400 italic mb-2"> {{ npc.npcBehavior }} </p>
+                            <div class="flex flex-col gap-2 text-xs">
+                              <!-- Affection Bar -->
+                              <div>
+                                  <div class="flex justify-between mb-1">
+                                    <span class="font-medium text-blue-300">호감도: {{ getAffectionTier(npc.affection) }}</span>
+                                    <span class="text-gray-400">{{ npc.affection }} / 100</span>
+                                  </div>
+                                  <div class="w-full bg-gray-700 rounded-full h-2.5">
+                                    <div class="h-2.5 rounded-full transition-all duration-500" [style.width.%]="npc.affection" [class]="getAffectionBarColor(npc.affection)"></div>
+                                  </div>
+                              </div>
+                              <!-- Desire Bar -->
+                              <div>
+                                  <div class="flex justify-between mb-1">
+                                    <span class="font-medium text-pink-300">욕망도: {{ getDesireTier(npc.desire) }}</span>
+                                    <span class="text-gray-400">{{ npc.desire }} / 100</span>
+                                  </div>
+                                  <div class="w-full bg-gray-700 rounded-full h-2.5">
+                                    <div class="h-2.5 rounded-full transition-all duration-500" [style.width.%]="npc.desire" [class]="getDesireBarColor(npc.desire)"></div>
+                                  </div>
+                              </div>
+                            </div>
+                          </div>
+                          @if(npc.npcDialogue) {
+                            <div class="dialogue-box border border-gray-700 rounded-lg p-3 shadow-xl mt-2">
+                              <p class="text-sm text-purple-300 italic mb-2">"{{ npc.npcInnerThought }}"</p>
+                              <p class="text-base text-white leading-snug">{{ npc.npcDialogue }}</p>
+                            </div>
+                          }
+                      </div>
+                    }
+                  </div>
+                </div>
+
+                <div class="mt-2">
+                  <div class="flex flex-col gap-2">
+                    @for (choice of turn.playerChoices; track choice) {
+                      <button (click)="selectChoice(choice)" [disabled]="loading()" class="choice-button group w-full text-left p-3 bg-gray-800 hover:bg-blue-900/50 border border-gray-700 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500 group-hover:text-blue-300 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span class="flex-1">{{ choice }}</span>
+                      </button>
+                    }
+                  </div>
+                  <div class="mt-2 flex gap-2">
+                    <input type="text" [value]="customInput()" (input)="customInput.set($any($event.target).value)" (keyup.enter)="submitCustomInput()" placeholder="직접 행동 입력..." class="flex-grow bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm">
+                    <button (click)="submitCustomInput()" [disabled]="loading()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      전송
+                    </button>
+                  </div>
+                  <div class="mt-2 grid grid-cols-2 gap-2">
+                    @if (gameService.currentLocation() === '내 방' && !isTrapped()) {
+                      <button (click)="takePersonalTime()" [disabled]="loading()" class="p-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs transition-colors disabled:opacity-50 shadow" title="혼자만의 시간을 보냅니다. (성욕 +20, 피로 -5, 시간 +20분)">개인 시간</button>
+                      <button (click)="rest()" [disabled]="loading()" class="p-2 bg-green-600 hover:bg-green-700 rounded-lg text-xs transition-colors disabled:opacity-50 shadow" title="휴식을 취합니다. (피로 -20, 시간 +40분)">휴식하기</button>
+                      <button (click)="sleep()" [disabled]="loading()" class="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-xs transition-colors disabled:opacity-50 shadow" title="잠을 자고 다음 날로 넘어갑니다.">잠자기</button>
+                      <button (click)="returnToLocationSelection()" [disabled]="loading()" class="p-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-xs transition-colors disabled:opacity-50" title="방에서 나갑니다.">나가기</button>
+                    } @else {
+                      <button (click)="returnToLocationSelection()" 
+                              [disabled]="loading() || isTrapped()" 
+                              class="col-span-2 p-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              [title]="isTrapped() ? '누군가의 강렬한 시선 때문에 자리를 뜰 수 없다.' : '다른 장소로 이동합니다.'">
+                        다른 장소로
+                      </button>
+                      @if (isTrapped()) {
+                        <button (click)="fleeFromDanger()"
+                                [disabled]="loading()"
+                                class="col-span-2 p-2 bg-red-700 hover:bg-red-800 rounded-lg text-xs transition-colors font-bold animate-pulse disabled:opacity-50"
+                                title="필사적으로 이 자리에서 도망칩니다!">
+                            도망가기!
+                        </button>
+                      }
+                    }
+                   </div>
+                </div>
+              }
+            }
+          }
+          @if (loading() && currentTurn()) {
+            <div class="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg z-20">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </main>
+
+  <!-- Save Game Menu Overlay -->
+  @if (showSaveMenu()) {
+    <div class="fixed inset-0 bg-black/70 z-40 flex items-center justify-center p-4" (click)="showSaveMenu.set(false)">
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 w-full max-w-md shadow-2xl" (click)="$event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold">게임 저장</h2>
+          <button (click)="showSaveMenu.set(false)" class="p-1 rounded-full hover:bg-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+        <div class="grid grid-cols-1 gap-3">
+          @for (slot of saveSlots(); track slot.id) {
+            <button (click)="saveGame(slot.id)" class="w-full text-left p-3 bg-gray-900 hover:bg-blue-900/50 border border-gray-700 rounded-lg transition-colors">
+              <h3 class="font-bold">슬롯 {{ slot.id + 1 }}</h3>
+              @if (slot.isEmpty) {
+                <p class="text-sm text-gray-400 italic">비어있음</p>
+              } @else {
+                <p class="text-sm text-gray-300">{{ slot.timestamp | date:'yy/MM/dd HH:mm' }}</p>
+                <p class="text-sm text-blue-400">장소: {{ slot.location || '알 수 없음' }}</p>
+              }
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Character List Modal -->
+  @if (showCharacterList()) {
+    <div class="fixed inset-0 bg-black/70 z-40 flex items-center justify-center p-4" (click)="showCharacterList.set(false)">
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 w-full max-w-2xl h-[80vh] flex flex-col shadow-2xl" (click)="$event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4 flex-shrink-0">
+          <h2 class="text-xl font-bold">정보</h2>
+          <button (click)="showCharacterList.set(false)" class="p-1 rounded-full hover:bg-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+        
+        <div class="flex border-b border-gray-700 mb-4 flex-shrink-0">
+          <button (click)="characterModalTab.set('info')" class="px-4 py-2 text-sm font-medium transition-colors" [class.text-blue-400]="characterModalTab() === 'info'" [class.border-b-2]="characterModalTab() === 'info'" [class.border-blue-400]="characterModalTab() === 'info'" [class.text-gray-400]="characterModalTab() !== 'info'">
+            인물 정보
+          </button>
+          <button (click)="characterModalTab.set('quests')" class="px-4 py-2 text-sm font-medium transition-colors" [class.text-blue-400]="characterModalTab() === 'quests'" [class.border-b-2]="characterModalTab() === 'quests'" [class.border-blue-400]="characterModalTab() === 'quests'" [class.text-gray-400]="characterModalTab() !== 'quests'">
+            임무 기록
+          </button>
+        </div>
+
+        <div class="overflow-y-auto pr-2 flex-grow">
+          @if (characterModalTab() === 'info') {
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              @for (npc of allNpcsList(); track npc.name) {
+                <div class="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                  <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-lg font-bold text-white">{{ npc.name }}</h3>
+                    <div class="flex items-center gap-2">
+                      @if (npc.affection === 100 && npc.desire === 100) {
+                        <span class="text-xs bg-red-800 text-red-200 px-2 py-1 rounded-full font-bold animate-pulse">위험</span>
+                      }
+                      <span class="text-xs px-2 py-1 rounded-full" [class]="npc.currentLocation ? 'bg-gray-700 text-blue-300' : 'bg-gray-700 text-gray-400'">
+                        {{ npc.currentLocation || '알 수 없음' }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="flex flex-col gap-2 text-xs">
+                    <!-- Affection Bar -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                          <span class="font-medium text-blue-300">호감도: {{ getAffectionTier(npc.affection) }}</span>
+                          <span class="text-gray-400">{{ npc.affection }} / 100</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2.5">
+                          <div class="h-2.5 rounded-full transition-all duration-500" [style.width.%]="npc.affection" [class]="getAffectionBarColor(npc.affection)"></div>
+                        </div>
+                    </div>
+                    <!-- Desire Bar -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                          <span class="font-medium text-pink-300">욕망도: {{ getDesireTier(npc.desire) }}</span>
+                          <span class="text-gray-400">{{ npc.desire }} / 100</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2.5">
+                          <div class="h-2.5 rounded-full transition-all duration-500" [style.width.%]="npc.desire" [class]="getDesireBarColor(npc.desire)"></div>
+                        </div>
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+          } @else if (characterModalTab() === 'quests') {
+            <div class="space-y-6">
+              <div>
+                <h3 class="text-lg font-semibold text-yellow-400 border-b border-yellow-700 pb-2 mb-3">진행중인 임무</h3>
+                @if (activeEvents().length > 0) {
+                  <div class="space-y-3">
+                    @for (event of activeEvents(); track event.id) {
+                      <div class="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                        <p class="font-bold text-gray-200">{{ event.title }}</p>
+                        <p class="text-sm text-gray-400">관련 인물: {{ event.characterName }}</p>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <p class="text-gray-500 italic">현재 진행중인 특별한 임무가 없습니다.</p>
+                }
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-green-400 border-b border-green-700 pb-2 mb-3">완료된 임무</h3>
+                @if (completedEvents().length > 0) {
+                  <div class="space-y-3">
+                    @for (event of completedEvents(); track event.id) {
+                      <div class="p-3 bg-gray-900/50 rounded-lg border border-gray-700 opacity-70">
+                        <p class="font-bold text-gray-300 line-through">{{ event.title }}</p>
+                        <p class="text-sm text-gray-500">관련 인물: {{ event.characterName }}</p>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <p class="text-gray-500 italic">아직 완료한 임무가 없습니다.</p>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Dialogue Edit Modal -->
+  @if (editingNpc(); as npc) {
+    <div class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" (click)="cancelEdit()">
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 w-full max-w-lg shadow-2xl" (click)="$event.stopPropagation()">
+        <h2 class="text-xl font-bold mb-4 text-yellow-400">대사 수정: {{ npc.name }}</h2>
+        <textarea 
+          class="w-full h-40 bg-gray-900 border border-gray-600 rounded-md p-2 text-gray-200 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+          [value]="editedDialogueText()" 
+          (input)="editedDialogueText.set($any($event.target).value)">
+        </textarea>
+        <div class="mt-4 flex justify-end gap-2">
+          <button (click)="getSuggestion()" [disabled]="suggestionLoading()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-md font-semibold transition-colors disabled:opacity-50 flex items-center gap-2">
+            @if (suggestionLoading()) {
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <span>제안...</span>
+            } @else {
+              <span>AI 제안</span>
+            }
+          </button>
+          <button (click)="cancelEdit()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-md transition-colors">취소</button>
+          <button (click)="confirmEdit()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-md font-semibold transition-colors">확인</button>
+        </div>
+      </div>
+    </div>
+  }
+</div>
